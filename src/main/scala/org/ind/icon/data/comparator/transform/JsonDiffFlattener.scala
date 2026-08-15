@@ -5,12 +5,19 @@ import com.fasterxml.jackson.databind.node.{ArrayNode, ObjectNode, ValueNode}
 import scala.collection.mutable
 import scala.util.Try
 
+/** Maps a single field-level discrepancy discovered deep within a nested hierarchy. */
 case class FieldDiff(column_path: String, source_val: String, target_val: String)
 
+/**
+ * A highly optimized JSON traversal engine used as a Spark UDF.
+ * It is invoked ONLY on rows that failed the outer-level comparison, bypassing Spark Catalyst 
+ * schema constraints and allowing infinite structural nesting.
+ */
 object JsonDiffFlattener extends Serializable {
   
   @transient lazy val mapper = new ObjectMapper()
 
+  /** Parses JSON, flattens to Map[String, String], and diffs nodes explicitly. */
   def diffComplexTypes(
     sourceJson: String, targetJson: String, 
     complexTypeKeys: Map[String, Seq[String]], 
@@ -23,7 +30,7 @@ object JsonDiffFlattener extends Serializable {
     val diffs = mutable.ListBuffer[FieldDiff]()
     
     (sMap.keySet ++ tMap.keySet).foreach { path =>
-      // Use Option to explicitly distinguish between "Key Missing" (None) and "Key Present but Null" (Some(null))
+      // Option safely tracks explicit nulls (Some(null)) vs completely missing keys (None)
       val sValOpt = sMap.get(path)
       val tValOpt = tMap.get(path)
 
@@ -32,21 +39,20 @@ object JsonDiffFlattener extends Serializable {
         val tVal = tValOpt.orNull
 
         if (enableNumericTolerance && numericTolerance > 0.0 && sVal != null && tVal != null) {
-          // Use BigDecimal to strictly preserve native precision
+          // BigDecimal avoids scientific notation and floating-point conversion loss
           val sNum = Try(BigDecimal(sVal)).toOption
           val tNum = Try(BigDecimal(tVal)).toOption
           
           if (sNum.isDefined && tNum.isDefined) {
-            if ((sNum.get - tNum.get).abs > BigDecimal(numericTolerance)) {
-              diffs += FieldDiff(path, sVal, tVal)
-            }
-          } else diffs += FieldDiff(path, sVal, tVal)
+            if ((sNum.get - tNum.get).abs > BigDecimal(numericTolerance)) diffs += FieldDiff(path, sVal, tVal)
+          } else diffs += FieldDiff(path, sVal, tVal) 
         } else diffs += FieldDiff(path, sVal, tVal)
       }
     }
     diffs.toSeq
   }
 
+  /** Recursively navigates Jackson JSON nodes, constructing dot-notation paths. */
   private def flatten(node: JsonNode, path: String, complexKeys: Map[String, Seq[String]]): Map[String, String] = {
     val res = mutable.Map[String, String]()
     def traverse(n: JsonNode, p: String): Unit = n match {
@@ -63,7 +69,7 @@ object JsonDiffFlattener extends Serializable {
           traverse(elem, eP)
         }
       case v: ValueNode => 
-        // Explicitly put null values into the map so they are tracked as Some(null)
+        // Explicit null tracking
         res.put(p, if (v.isNull) null else v.asText())
       case _ =>
     }

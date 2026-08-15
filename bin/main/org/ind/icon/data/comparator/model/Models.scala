@@ -3,13 +3,13 @@ package org.ind.icon.data.comparator.model
 import org.apache.spark.sql.DataFrame
 
 /**
- * Configuration for the DataFrame comparison engine.
+ * Configuration for the Spark DataFrame Comparison engine.
  *
- * @param primaryKeys            The unique identifiers for a row. Used for joining Source and Target.
- * @param ignoreColumns          Columns to exclude from comparison (e.g., ETL timestamps, audit flags).
+ * @param primaryKeys            The unique identifiers for a row. Used for joining Source and Target datasets.
+ * @param ignoreColumns          Columns to exclude from comparison (e.g., ETL timestamps, auto-generated IDs).
  * @param complexTypeKeys        A mapping of Array column names to their internal logical keys (e.g., Map("history" -> Seq("version_id"))).
  *                               This allows the engine to align and compare array elements regardless of their physical order.
- * @param enableNumericTolerance If true, numeric drift is evaluated using `numericTolerance`.
+ * @param enableNumericTolerance If true, numeric drift is evaluated using the `numericTolerance` parameter.
  * @param numericTolerance       The absolute threshold allowed for floating-point/decimal drift.
  * @param standardizeArrays      If true, natively sorts arrays using Spark Catalyst before comparison to prevent false positives.
  * @param validateUniqueness     If true, asserts that primary keys are strictly unique to prevent massive Cartesian explosions.
@@ -66,7 +66,7 @@ case class ComparatorSinkResult(
   extraCount: Long,
   mismatchCount: Long,
   complexMismatchCount: Long,
-  comparatorResult: ComparatorResult // Enables chaining without re-reading Delta tables
+  comparatorResult: ComparatorResult
 ) {
   /** Returns true if both DataFrames are perfectly identical based on the provided configuration. */
   def isPerfectMatch: Boolean = missingCount == 0 && extraCount == 0 && mismatchCount == 0
