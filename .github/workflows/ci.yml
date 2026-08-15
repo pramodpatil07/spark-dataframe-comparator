@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   build-and-test:
-    name: Build and Test (Java 21, Spark 4.0)
+    name: Build, Test, and Verify Publish (Java 21, Spark 4.0)
     runs-on: ubuntu-latest
 
     steps:
@@ -30,6 +30,10 @@ jobs:
 
     - name: Execute Enterprise Test Suite
       run: ./gradlew clean test
+
+    - name: Verify Maven Local Publishing
+      run: ./gradlew publishToMavenLocal
+      # This acts as a dry-run to ensure JAR packaging, Scaladocs, and POM generation work perfectly
 
     - name: Upload ScalaTest HTML Report
       if: always() # Ensures the report is uploaded even if a test fails
