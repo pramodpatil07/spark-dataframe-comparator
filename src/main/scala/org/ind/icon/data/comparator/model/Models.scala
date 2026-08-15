@@ -4,7 +4,8 @@ import org.apache.spark.sql.DataFrame
 
 /**
  * Configuration for the Spark DataFrame Comparison engine.
- *
+ * 
+ * 
  * @param primaryKeys            The unique identifiers for a row. Used for joining Source and Target datasets.
  * @param ignoreColumns          Columns to exclude from comparison (e.g., ETL timestamps, auto-generated IDs).
  * @param complexTypeKeys        A mapping of Array column names to their internal logical keys (e.g., Map("history" -> Seq("version_id"))).
@@ -13,6 +14,7 @@ import org.apache.spark.sql.DataFrame
  * @param numericTolerance       The absolute threshold allowed for floating-point/decimal drift.
  * @param standardizeArrays      If true, natively sorts arrays using Spark Catalyst before comparison to prevent false positives.
  * @param validateUniqueness     If true, asserts that primary keys are strictly unique to prevent massive Cartesian explosions.
+ */
  */
 case class ComparatorConfig(
   primaryKeys: Seq[String],
@@ -33,6 +35,7 @@ case class ComparatorConfig(
  * @param runDate          The logical execution date, used natively for Delta table partitioning.
  * @param partitionCols    Columns to partition the Delta table by (defaults to run_date).
  * @param saveMode         Spark write mode (e.g., "append" or "overwrite").
+ * @param writeMatchedRecords If true, writes the perfectly matched rows to Delta. Default is false to save massive I/O.
  */
 case class ComparatorSinkConfig(
   catalogAndSchema: String,                   
@@ -40,7 +43,8 @@ case class ComparatorSinkConfig(
   runId: String,                      
   runDate: String,                    
   partitionCols: Seq[String] = Seq("run_date"), 
-  saveMode: String = "append"
+  saveMode: String = "append",
+  writeMatchedRecords: Boolean = false
 )
 
 /**
@@ -66,8 +70,7 @@ case class ComparatorSinkResult(
   extraCount: Long,
   mismatchCount: Long,
   complexMismatchCount: Long,
-  comparatorResult: ComparatorResult
+  comparatorResult: ComparatorResult // Fully materialized DataFrames read from Delta!
 ) {
-  /** Returns true if both DataFrames are perfectly identical based on the provided configuration. */
   def isPerfectMatch: Boolean = missingCount == 0 && extraCount == 0 && mismatchCount == 0
 }

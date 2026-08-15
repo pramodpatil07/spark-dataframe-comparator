@@ -11,8 +11,8 @@ import io.delta.tables.DeltaTable
  * expression generation, and Delta Lake I/O operations.
  */
 object ComparatorHelpers extends Serializable {
-
-  /**
+    
+    /**
    * Validates that both DataFrames contain the required primary keys and checks for uniqueness 
    * to prevent catastrophic Cartesian products during the join phase.
    */
@@ -40,10 +40,11 @@ object ComparatorHelpers extends Serializable {
     case _ => true
   }
 
-  /**
+ /**
    * Standardizes arrays to eliminate false positive mismatches caused by elements being physically
    * out of order in the underlying storage.
    */
+
   def standardizeArrays(df: DataFrame, config: ComparatorConfig): DataFrame = {
     if (!config.standardizeArrays) return df
 
@@ -52,7 +53,7 @@ object ComparatorHelpers extends Serializable {
       field.dataType match {
         case ArrayType(elementType, _) =>
           val keyOpt = config.complexTypeKeys.get(field.name).flatMap(_.headOption)
-          
+
           if (keyOpt.isDefined && elementType.isInstanceOf[StructType]) {
             val key = keyOpt.get
             val sortExpr = s"array_sort(`${field.name}`, (l, r) -> if(l.`$key` < r.`$key`, -1, if(l.`$key` > r.`$key`, 1, 0)))"
@@ -66,16 +67,16 @@ object ComparatorHelpers extends Serializable {
     res
   }
 
-  /**
+ /**
    * Constructs the boolean SQL expression required to compare a single column between Source (s) and Target (t).
    * @return A Column expression evaluating to the Column Name if mismatched, or explicitly NULL if matched.
    */
   def buildMismatchCheckExpr(colName: String, dataType: DataType, config: ComparatorConfig): org.apache.spark.sql.Column = {
     var sCol = col(s"s.$colName")
     var tCol = col(s"t.$colName")
-
     // CRITICAL FIX: If the datatype is a Map or an Array of Maps, Spark's <=> operator will crash.
     // We must serialize these specific unorderable columns into JSON strings to perform the exact match.
+
     if (!isOrderable(dataType)) {
       val jsonOpts = Map("ignoreNullFields" -> "false")
       sCol = to_json(sCol, jsonOpts)
@@ -106,19 +107,36 @@ object ComparatorHelpers extends Serializable {
   def buildEmptyResult(joined: DataFrame, missing: DataFrame, extra: DataFrame, spark: SparkSession): ComparatorResult = {
     val emptyMismatches = spark.emptyDataFrame
       .withColumn("mismatched_columns", typedLit(Array.empty[String]))
-      .withColumn("source_data", lit(null))
-      .withColumn("target_data", lit(null))
+      // CRITICAL FIX: Cast to StringType to prevent "Parquet does not support NullType" crashes on key-only tables.
+      .withColumn("source_data", lit(null).cast(StringType))
+      .withColumn("target_data", lit(null).cast(StringType))
+      
     ComparatorResult(joined, missing, extra, emptyMismatches, buildEmptyComplexDf(spark))
   }
 
-  def writeDeltaAndGetCount(df: DataFrame, suffix: String, sink: ComparatorSinkConfig): Long = {
+  /**
+   * Writes the DataFrame to Unity Catalog / Delta Lake, fetches the exact row count from the 
+   * transaction log in O(1) time, and returns a NEW DataFrame that reads directly from the 
+   * written Delta table. This severs the DAG dependency, preventing costly re-evaluations.
+   */
+  def writeDeltaAndRead(df: DataFrame, suffix: String, sink: ComparatorSinkConfig): (Long, DataFrame) = {
     val tableName = s"${sink.catalogAndSchema}.${sink.tablePrefix}_$suffix"
+    
     df.withColumn("run_id", lit(sink.runId)).withColumn("run_date", lit(sink.runDate))
       .write.format("delta").mode(sink.saveMode).partitionBy(sink.partitionCols: _*).saveAsTable(tableName)
     
-    val history = DeltaTable.forName(df.sparkSession, tableName).history(1)
+    val spark = df.sparkSession
+    val history = DeltaTable.forName(spark, tableName).history(1)
     val metrics = history.select(expr("element_at(operationMetrics, 'numOutputRows')")).first()
     val rowsStr = metrics.getAs[String](0)
-    if (rowsStr != null) rowsStr.toLong else 0L
+    val count = if (rowsStr != null) rowsStr.toLong else 0L
+
+    // Read from the Delta table and filter by the current run_id.
+    // Dropping the metadata columns restores the original schema expected by the caller.
+    val materializedDf = spark.read.table(tableName)
+      .where(col("run_id") === sink.runId)
+      .drop("run_id", "run_date")
+
+    (count, materializedDf)
   }
 }

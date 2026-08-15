@@ -102,14 +102,35 @@ class SparkDataFrameComparator extends DataFrameComparator with Serializable {
 
   override def compareAndWrite(source: DataFrame, target: DataFrame, config: ComparatorConfig, sink: ComparatorSinkConfig): ComparatorSinkResult = {
     val result = compare(source, target, config)
+ // CRITICAL FIX: The DataFrames returned here are physically detached from the heavy execution DAG. 
+    // They are simple Parquet scans of the data that was just written.
+    val (missingCount, missingDf) = ComparatorHelpers.writeDeltaAndRead(result.missingRecords, "missing", sink)
+    val (extraCount, extraDf) = ComparatorHelpers.writeDeltaAndRead(result.extraRecords, "extra", sink)
+    val (mismatchCount, mismatchedDf) = ComparatorHelpers.writeDeltaAndRead(result.mismatchedRecords, "mismatched", sink)
+    val (complexCount, complexDf) = ComparatorHelpers.writeDeltaAndRead(result.complexMismatches, "complex_mismatches", sink)
+
+    // Matched rows are usually massive. We only materialize them to Delta if explicitly configured.
+    val matchedDf = if (sink.writeMatchedRecords) {
+      ComparatorHelpers.writeDeltaAndRead(result.matchedRecords, "matched", sink)._2
+    } else {
+      result.matchedRecords // Retained as an unresolved lazy DAG
+    }
+
+    val materializedResult = ComparatorResult(
+      matchedRecords = matchedDf,
+      missingRecords = missingDf,
+      extraRecords = extraDf,
+      mismatchedRecords = mismatchedDf,
+      complexMismatches = complexDf
+    )
 
     ComparatorSinkResult(
       runId = sink.runId,
-      missingCount = ComparatorHelpers.writeDeltaAndGetCount(result.missingRecords, "missing", sink),
-      extraCount = ComparatorHelpers.writeDeltaAndGetCount(result.extraRecords, "extra", sink),
-      mismatchCount = ComparatorHelpers.writeDeltaAndGetCount(result.mismatchedRecords, "mismatched", sink),
-      complexMismatchCount = ComparatorHelpers.writeDeltaAndGetCount(result.complexMismatches, "complex_mismatches", sink),
-      comparatorResult = result
+      missingCount = missingCount,
+      extraCount = extraCount,
+      mismatchCount = mismatchCount,
+      complexMismatchCount = complexCount,
+      comparatorResult = materializedResult
     )
   }
 }

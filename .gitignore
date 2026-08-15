@@ -3,6 +3,7 @@
 build/
 artifacts/
 .metals/
+bin
 .bsp/
 .idea/
 .vscode/
