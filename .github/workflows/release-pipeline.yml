@@ -1,0 +1,43 @@
+name: Production Release Pipeline
+
+on:
+  push:
+    branches: [ "releases" ] # Triggers ONLY when a PR is merged into 'releases'
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  publish-release:
+    name: Publish Non-Snapshot Release
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 21
+      uses: actions/setup-java@v5
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+        cache: 'gradle'
+
+    # Dynamically remove "-SNAPSHOT" from the version string before publishing
+    - name: Strip -SNAPSHOT from version
+      run: sed -i 's/-SNAPSHOT//g' build.gradle.kts
+
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
+
+    - name: Execute Enterprise Test Suite
+      run: ./gradlew clean test
+
+    - name: Publish Production Artifact
+      run: ./gradlew publish
+      env:
+        # These secrets must be configured in your GitHub Repository Settings -> Secrets
+        MAVEN_REPO_URL: ${{ secrets.MAVEN_REPO_URL }}
+        MAVEN_USER: ${{ secrets.MAVEN_USER }}
+        MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
