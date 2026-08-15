@@ -35,7 +35,7 @@ val config = ComparatorConfig(
 
 val result = new SparkDataFrameComparator().compare(sourceDf, targetDf, config)
 display(result.mismatchedRecords)
-
+```
 ### Use Case 2: Deep Nested NoSQL Comparison
 Perfect for comparing Cosmos DB un-normalized JSON documents dumped to Parquet against a curated Delta Lake table.
 
@@ -50,6 +50,7 @@ val config = ComparatorConfig(
 
 val result = comparator.compare(cosmosDf, deltaDf, config)
 // The output automatically maps the anomaly: "history_array[version_id=2].metadata.flag"
+```
 
 ### Use Case 3: Databricks Unity Catalog Pipeline (Action Sink)
 Built for scheduled Data Engineering jobs. Sinks the results into Unity Catalog and extracts execution metrics instantly.
@@ -74,14 +75,14 @@ if (sinkResult.mismatchCount > 0) {
     val sampleAlertDf = sinkResult.comparatorResult.mismatchedRecords.limit(5)
     SlackNotifier.send(sampleAlertDf)
 }
-
+```
 
 ### Use Case 4: Bridging Tables / Dimension Keys
 If you compare bridging tables that only contain Primary Keys and no payload data, the framework detects it and securely runs an anti-join validation.
-
 
 ```scala
 val bridgeConfig = ComparatorConfig(primaryKeys = Seq("user_id", "group_id"))
 val result = comparator.compare(sourceBridge, targetBridge, bridgeConfig)
 
 // missingRecords and extraRecords are fully populated. mismatchedRecords remains empty.
+```
