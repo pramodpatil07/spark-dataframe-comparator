@@ -7,7 +7,7 @@ val scalaVersion: String by project
 val scalaBinaryVersion: String by project
 val sparkVersion: String by project
 val scalatestVersion: String by project
-val deltaVersion : String by project 
+val deltaVersion :String by project
 
 java { toolchain { languageVersion.set(JavaLanguageVersion.of(21)) } }
 repositories { mavenCentral() }
