@@ -15,10 +15,11 @@ class ActionSinkIntegrationSpec extends SparkTestBase {
       val dfTarget = Seq((1, "A"), (2, "MUTATED"), (4, "D")).toDF("id", "name")
 
       val config = ReconConfig(Seq("id"))
+      val runId = UUID.randomUUID().toString
       val sink = ReconSinkConfig(
-        basePath = "build/test-results-delta",
+        basePath = s"build/test-results-delta/$runId",
         tablePrefix = "batch_recon",
-        runId = UUID.randomUUID().toString,
+        runId = runId,
         runDate = "2026-08-15"
       )
 
