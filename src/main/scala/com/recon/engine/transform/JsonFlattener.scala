@@ -1,4 +1,4 @@
-.\grpackage com.recon.engine.transform
+package com.recon.engine.transform
 
 import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
 import com.fasterxml.jackson.databind.node.{ArrayNode, ObjectNode, ValueNode}
