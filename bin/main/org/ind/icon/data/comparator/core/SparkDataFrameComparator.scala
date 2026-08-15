@@ -8,11 +8,6 @@ import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import io.delta.tables.DeltaTable
 
-trait DataFrameComparator {
-  def compare(source: DataFrame, target: DataFrame, config: ComparatorConfig): ComparatorResult
-  def compareAndWrite(source: DataFrame, target: DataFrame, config: ComparatorConfig, sink: ComparatorSinkConfig): ComparatorSummary
-}
-
 /**
  * The core orchestrator for massive-scale DataFrame Comparison.
  * Executes the "Two-Tiered Evaluation" pattern to prevent Spark memory exhaustion on 100M+ row tables.
