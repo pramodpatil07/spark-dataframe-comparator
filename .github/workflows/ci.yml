@@ -1,10 +1,8 @@
 name: Spark Data Comparator CI
 
 on:
-  push:
-    branches: [ "main" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "releases" ]
 
 permissions:
   contents: read
@@ -19,11 +17,11 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Set up JDK 21
-      uses: actions/setup-java@v4
+      uses: actions/setup-java@v5
       with:
         java-version: '21'
         distribution: 'temurin'
-        cache: 'gradle' # Automatically caches downloaded Maven dependencies
+        cache: 'gradle'
 
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
@@ -33,10 +31,9 @@ jobs:
 
     - name: Verify Maven Local Publishing
       run: ./gradlew publishToMavenLocal
-      # This acts as a dry-run to ensure JAR packaging, Scaladocs, and POM generation work perfectly
 
     - name: Upload ScalaTest HTML Report
-      if: always() # Ensures the report is uploaded even if a test fails
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: scalatest-html-report
