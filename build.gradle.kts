@@ -1,55 +1,44 @@
-plugins {
-    scala
-    `maven-publish`
-}
+plugins { scala; `maven-publish` }
 
-val scalaVersion = providers.gradleProperty("scalaVersion").get()
-val scalaBinaryVersion = providers.gradleProperty("scalaBinaryVersion").get()
-val sparkVersion = providers.gradleProperty("sparkVersion").get()
-val scalatestVersion = providers.gradleProperty("scalatestVersion").get()
-val deltaVersion = providers.gradleProperty("deltaVersion").get()
-val jacksonVersion = providers.gradleProperty("jacksonVersion").get()
-val artifactName = providers.gradleProperty("artifactName").get()
+group = "org.ind.icon.data"
+version = "1.0.0-SNAPSHOT"
 
-java {
-    // The Scala compiler targets Java 17 below; JDK 21 is used only to run Gradle.
-    toolchain { languageVersion.set(JavaLanguageVersion.of(21)) }
-    withSourcesJar()
-}
+val scalaVersion: String by project
+val scalaBinaryVersion: String by project
+val sparkVersion: String by project
+val scalatestVersion: String by project
+val deltaVersion : String by project 
 
-base { archivesName.set(artifactName) }
+java { toolchain { languageVersion.set(JavaLanguageVersion.of(21)) } }
 repositories { mavenCentral() }
 
 dependencies {
     compileOnly("org.scala-lang:scala-library:$scalaVersion")
     compileOnly("org.apache.spark:spark-sql_$scalaBinaryVersion:$sparkVersion")
-    // Jackson is supplied by Spark at runtime; do not force a competing version on consumers.
-    compileOnly("com.fasterxml.jackson.core:jackson-databind:$jacksonVersion")
+    compileOnly("io.delta:delta-spark_$scalaBinaryVersion:$deltaVersion")
 
     testImplementation("org.scala-lang:scala-library:$scalaVersion")
     testImplementation("org.apache.spark:spark-sql_$scalaBinaryVersion:$sparkVersion")
     testImplementation("io.delta:delta-spark_$scalaBinaryVersion:$deltaVersion")
     testImplementation("org.scalatest:scalatest_$scalaBinaryVersion:$scalatestVersion")
     testImplementation("com.vladsch.flexmark:flexmark-all:0.64.8")
-}
-
-tasks.withType<ScalaCompile>().configureEach {
-    scalaCompileOptions.additionalParameters = listOf("-release", "17", "-deprecation", "-feature", "-unchecked")
+    implementation("com.fasterxml.jackson.core:jackson-databind:2.15.2")
+    implementation("com.fasterxml.jackson.module:jackson-module-scala_$scalaBinaryVersion:2.15.2")
 }
 
 val testSuites = listOf(
-    "com.recon.engine.BasicReconSpec",
-    "com.recon.engine.ActionSinkIntegrationSpec",
-    "com.recon.engine.DeepNestedStressSpec" // The new Ultimate Stress Test
+    "org.ind.icon.data.comparator.BasicComparatorSpec",
+    "org.ind.icon.data.comparator.ActionSinkIntegrationSpec",
+    "org.ind.icon.data.comparator.DeepNestedStressSpec"
 )
 
-val scalatest = tasks.register<JavaExec>("scalatest") {
+val scalatest by tasks.registering(JavaExec::class) {
     dependsOn(tasks.testClasses)
     mainClass.set("org.scalatest.tools.Runner")
     classpath = sourceSets["test"].runtimeClasspath
     
     jvmArgs = listOf(
-        "-Xms512m", "-Xmx1536m",
+        "-Xms2048m", "-Xmx4096m",
         "--add-opens=java.base/java.lang=ALL-UNNAMED", "--add-opens=java.base/java.lang.invoke=ALL-UNNAMED",
         "--add-opens=java.base/java.lang.reflect=ALL-UNNAMED", "--add-opens=java.base/java.io=ALL-UNNAMED",
         "--add-opens=java.base/java.net=ALL-UNNAMED", "--add-opens=java.base/java.nio=ALL-UNNAMED",
@@ -69,20 +58,11 @@ tasks.check { dependsOn(scalatest) }
 
 publishing {
     publications {
-        create<MavenPublication>("mavenScala") {
+        create<MavenPublication>("mavenJava") {
             from(components["java"])
-            artifactId = artifactName
-            pom {
-                name.set("Spark Recon Engine")
-                description.set("A Scala library for reconciling two Apache Spark DataFrames.")
-                licenses {
-                    license {
-                        name.set("The Apache License, Version 2.0")
-                        url.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
-                        distribution.set("repo")
-                    }
-                }
-            }
+            groupId = project.group.toString()
+            artifactId = "${project.name}_$scalaBinaryVersion"
+            version = project.version.toString()
         }
     }
 }
