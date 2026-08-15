@@ -7,9 +7,13 @@ val scalaVersion: String by project
 val scalaBinaryVersion: String by project
 val sparkVersion: String by project
 val scalatestVersion: String by project
-val deltaVersion :String by project
+val deltaVersion: String by project
 
-java { toolchain { languageVersion.set(JavaLanguageVersion.of(21)) } }
+java { 
+    toolchain { languageVersion.set(JavaLanguageVersion.of(21)) } 
+    withSourcesJar()
+}
+
 repositories { mavenCentral() }
 
 dependencies {
@@ -29,6 +33,7 @@ dependencies {
 val testSuites = listOf(
     "org.ind.icon.data.comparator.BasicComparatorSpec",
     "org.ind.icon.data.comparator.ActionSinkIntegrationSpec",
+    "org.ind.icon.data.comparator.EdgeCaseComparatorSpec",
     "org.ind.icon.data.comparator.DeepNestedStressSpec"
 )
 
@@ -56,10 +61,16 @@ tasks.withType<Test> { failOnNoDiscoveredTests = false }
 tasks.named("test") { dependsOn(scalatest) }
 tasks.check { dependsOn(scalatest) }
 
+val scaladocJar by tasks.registering(Jar::class) {
+    archiveClassifier.set("javadoc")
+    from(tasks.named("scaladoc"))
+}
+
 publishing {
     publications {
         create<MavenPublication>("mavenJava") {
             from(components["java"])
+            artifact(scaladocJar)
             groupId = project.group.toString()
             artifactId = "${project.name}_$scalaBinaryVersion"
             version = project.version.toString()

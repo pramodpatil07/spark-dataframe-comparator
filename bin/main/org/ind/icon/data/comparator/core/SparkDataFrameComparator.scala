@@ -119,32 +119,34 @@ class SparkDataFrameComparator extends DataFrameComparator with Serializable {
     ComparatorResult(matchedRecords, missingRecords, extraRecords, mismatchedRecords, complexMismatchesDf)
   }
 
-  def compareAndWrite(source: DataFrame, target: DataFrame, config: ComparatorConfig, sink: ComparatorSinkConfig): ComparatorSummary = {
+  def compareAndWrite(source: DataFrame, target: DataFrame, config: ComparatorConfig, sink: ComparatorSinkConfig): ComparatorSinkResult = {
     val result = compare(source, target, config)
     val spark = source.sparkSession
 
     def writeDelta(df: DataFrame, suffix: String): Long = {
-      val path = s"${sink.basePath}/${sink.tablePrefix}_$suffix"
+      // Unity Catalog table name resolution (e.g. catalog.schema.table_prefix_missing)
+      val tableName = s"${sink.catalogAndSchema}.${sink.tablePrefix}_$suffix"
       
       // Blindly write the dataframe. Delta natively materializes empty directories/schemas 
       // safely without triggering OutOfMemory exceptions on empty DAGs.
       df.withColumn("run_id", lit(sink.runId)).withColumn("run_date", lit(sink.runDate))
-        .write.format("delta").mode(sink.saveMode).partitionBy(sink.partitionCols: _*).save(path)
+        .write.format("delta").mode(sink.saveMode).partitionBy(sink.partitionCols: _*).saveAsTable(tableName)
       
       // PERFORMANCE OPTIMIZATION: O(1) Instant metric extraction straight from Delta's transaction log.
-      // This retrieves the exact number of output rows written by THIS runId without scanning Parquet files.
-      val history = DeltaTable.forPath(spark, path).history(1)
+      // This retrieves the exact number of output rows written by THIS runId.
+      val history = DeltaTable.forName(spark, tableName).history(1)
       val metrics = history.select(expr("element_at(operationMetrics, 'numOutputRows')")).first()
       val rowsStr = metrics.getAs[String](0)
       if (rowsStr != null) rowsStr.toLong else 0L
     }
 
-    ComparatorSummary(
+    ComparatorSinkResult(
       runId = sink.runId,
       missingCount = writeDelta(result.missingRecords, "missing"),
       extraCount = writeDelta(result.extraRecords, "extra"),
       mismatchCount = writeDelta(result.mismatchedRecords, "mismatched"),
-      complexMismatchCount = writeDelta(result.complexMismatches, "complex_mismatches")
+      complexMismatchCount = writeDelta(result.complexMismatches, "complex_mismatches"),
+      comparatorResult = result
     )
   }
 }

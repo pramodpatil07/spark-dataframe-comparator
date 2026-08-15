@@ -25,17 +25,17 @@ case class ComparatorConfig(
 )
 
 /**
- * Configuration for sinking execution results into Delta Lake.
+ * Configuration for sinking execution results into Unity Catalog / Delta Lake via table names.
  *
- * @param basePath      The root storage path (e.g., ADLS abfss://... or local file path).
- * @param tablePrefix   The prefix appended to table names (e.g., "api_recon" creates "api_recon_missing").
- * @param runId         A unique UUID for this execution batch.
- * @param runDate       The logical execution date, used for Delta table partitioning.
- * @param partitionCols Columns to partition the Delta table by (defaults to run_date).
- * @param saveMode      Spark write mode (e.g., "append" or "overwrite").
+ * @param catalogAndSchema The three-part target namespace excluding the table name (e.g., "prod_catalog.staging_schema").
+ * @param tablePrefix      The prefix appended to the generated tables (e.g., "api_data" creates "api_data_missing").
+ * @param runId            A unique UUID for this execution batch, attached to every written row.
+ * @param runDate          The logical execution date, used natively for Delta table partitioning.
+ * @param partitionCols    Columns to partition the Delta table by (defaults to run_date).
+ * @param saveMode         Spark write mode (e.g., "append" or "overwrite").
  */
 case class ComparatorSinkConfig(
-  basePath: String,                   
+  catalogAndSchema: String,                   
   tablePrefix: String,                
   runId: String,                      
   runDate: String,                    
@@ -57,14 +57,16 @@ case class ComparatorResult(
 
 /**
  * The Action artifact returned after sinking data to Delta Lake.
- * Contains instantaneous KPIs retrieved directly from Delta Transaction logs.
+ * Contains instantaneous KPIs retrieved directly from Delta Transaction logs, 
+ * as well as the original ComparatorResult DataFrames for immediate downstream chaining.
  */
-case class ComparatorSummary(
+case class ComparatorSinkResult(
   runId: String,
   missingCount: Long,
   extraCount: Long,
   mismatchCount: Long,
-  complexMismatchCount: Long
+  complexMismatchCount: Long,
+  comparatorResult: ComparatorResult // Enables chaining without re-reading Delta tables
 ) {
   /** Returns true if both DataFrames are perfectly identical based on the provided configuration. */
   def isPerfectMatch: Boolean = missingCount == 0 && extraCount == 0 && mismatchCount == 0

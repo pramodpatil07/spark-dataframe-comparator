@@ -36,7 +36,7 @@ object JsonDiffFlattener extends Serializable {
     val diffs = mutable.ListBuffer[FieldDiff]()
     
     (sMap.keySet ++ tMap.keySet).foreach { path =>
-      // We use Option to explicitly distinguish between "Key Missing" (None) and "Key Present but Null" (Some(null))
+      // We use Option to explicitly distinguish between "Key Missing" (None) and "Key Present but explicitly Null" (Some(null))
       val sValOpt = sMap.get(path)
       val tValOpt = tMap.get(path)
 

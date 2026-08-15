@@ -42,7 +42,7 @@ object ComparatorHelpers extends Serializable {
             val sortExpr = s"array_sort(`${field.name}`, (l, r) -> if(l.`$key` < r.`$key`, -1, if(l.`$key` > r.`$key`, 1, 0)))"
             res = res.withColumn(field.name, expr(sortExpr))
           } else if (isOrderable(elementType)) {
-            // Primitive or Orderable Struct Arrays: We rely on native array_sort.
+            // Primitive or Orderable Struct Arrays: We rely on native array_sort safely.
             res = res.withColumn(field.name, array_sort(col(field.name)))
           }
         case _ => // Skip non-array columns

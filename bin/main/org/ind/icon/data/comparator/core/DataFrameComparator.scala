@@ -5,5 +5,5 @@ import org.apache.spark.sql.DataFrame
 
 trait DataFrameComparator {
   def compare(source: DataFrame, target: DataFrame, config: ComparatorConfig): ComparatorResult
-  def compareAndWrite(source: DataFrame, target: DataFrame, config: ComparatorConfig, sink: ComparatorSinkConfig): ComparatorSummary
+  def compareAndWrite(source: DataFrame, target: DataFrame, config: ComparatorConfig, sink: ComparatorSinkConfig): ComparatorSinkResult
 }

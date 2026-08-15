@@ -10,10 +10,11 @@ To solve this, this engine executes a **Two-Tiered Evaluation Pattern**:
 2. **Tier 2 (UDF Fallback)**: **ONLY** if a row failed the Tier 1 evaluation, and **ONLY** if the failure occurred within a complex `Struct`, `Array`, or `Map`, the engine deploys a highly tuned Jackson JSON UDF. This UDF traverses infinite hierarchy depths to extract the exact `(column_path, value)` anomaly without crashing Catalyst.
 
 ## Enterprise Features
-* **O(1) Delta Lake KPI Extraction**: Sinks natively to Unity Catalog via `saveAsTable`. Fetches the `operationMetrics.numOutputRows` from the Delta Transaction Log, returning instantaneous KPIs without executing a second DAG.
-* **Dynamic Array Standardization**: Automatically detects arrays and utilizes higher-order SQL (`array_sort`) to deterministically order arrays of primitives and arrays of objects by logical keys *before* comparison.
-* **Decimal Preservation**: Evaluates numeric tolerances (`enableNumericTolerance`) using native `abs()` SQL functions, preventing floating-point truncation.
-* **Explicit Null Tracking**: Distinguishes between `"key": null` and a completely missing key using explicit `Option[String]` tracking.
+* **O(1) Delta Lake KPI Extraction**: Writing to partitioned Delta Lakes automatically fetches the `operationMetrics.numOutputRows` from the Delta Transaction Log, returning instantaneous KPIs (Matches, Missing, Extra) without ever executing a second DAG evaluation or scanning physical Parquet files.
+* **Dynamic Array Standardization**: Automatically detects arrays and utilizes higher-order SQL (`array_sort`) to deterministically order arrays of primitives and arrays of objects by logical keys *before* comparison, entirely preventing false positive mismatches.
+* **Decimal Preservation**: Evaluates numeric tolerances (`enableNumericTolerance`) using native `abs()` SQL functions, preventing floating-point truncation issues caused by casting `Decimal(38,18)` types.
+* **Explicit Null Tracking**: Distinguishes between `"key": null` and a completely missing key using explicit `Option[String]` tracking during deep JSON diffing.
+* **Cartesian Protection**: Configurable `.validateUniqueness` blocks catastrophic many-to-many joins caused by duplicate primary keys.
 
 ## Integration & Getting Started
 
