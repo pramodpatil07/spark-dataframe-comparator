@@ -10,8 +10,9 @@ class EdgeCaseComparatorSpec extends SparkTestBase {
   describe("SparkDataFrameComparator - Exhaustive Edge Cases") {
     val comparator = new SparkDataFrameComparator()
 
-    it("should safely bypass array_sort on MapType arrays and correctly detect mismatches") {
+    it("should safely bypass array_sort and native <=> comparisons on MapType arrays and correctly detect mismatches") {
       import spark.implicits._
+      // Maps are strictly non-orderable and do not support Spark's <=> operator.
       val sourceDf = Seq((1, Seq(Map("k1" -> "v1")))).toDF("id", "map_array")
       val targetDf = Seq((1, Seq(Map("k1" -> "MUTATED")))).toDF("id", "map_array")
 
@@ -23,7 +24,7 @@ class EdgeCaseComparatorSpec extends SparkTestBase {
       import spark.implicits._
       val schema = StructType(Seq(StructField("id", IntegerType), StructField("amount", DecimalType(38, 18))))
       val sRows = Seq(org.apache.spark.sql.Row(1, BigDecimal("123456789.123456789123456789")))
-      val tRows = Seq(org.apache.spark.sql.Row(1, BigDecimal("123456789.123456789123456790"))) // Diff: 0.000000000000000001
+      val tRows = Seq(org.apache.spark.sql.Row(1, BigDecimal("123456789.123456789123456790")))
       
       val sDf = spark.createDataFrame(spark.sparkContext.parallelize(sRows), schema)
       val tDf = spark.createDataFrame(spark.sparkContext.parallelize(tRows), schema)
@@ -42,13 +43,14 @@ class EdgeCaseComparatorSpec extends SparkTestBase {
       
       val result = comparator.compare(sDf, tDf, ComparatorConfig(Seq("id")))
       
+      // Mismatch should be detected by the fallback UDF perfectly
       result.mismatchedRecords.count() shouldBe 1
       val exceptions = result.complexMismatches.collect()
       
       exceptions.length shouldBe 1
       exceptions.head.getAs[String]("column_path") shouldBe "map_col.k1"
       exceptions.head.getAs[String]("source_val") shouldBe null
-      exceptions.head.getAs[String]("target_val") shouldBe null // Jackson UDF reports null vs missing cleanly
+      exceptions.head.getAs[String]("target_val") shouldBe null
     }
 
     it("should block Cartesian products when validateUniqueness is enabled") {
