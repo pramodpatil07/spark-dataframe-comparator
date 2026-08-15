@@ -15,7 +15,7 @@ import org.apache.spark.sql.DataFrame
  * @param standardizeArrays      If true, natively sorts arrays using Spark Catalyst before comparison to prevent false positives.
  * @param validateUniqueness     If true, asserts that primary keys are strictly unique to prevent massive Cartesian explosions.
  */
- */
+ 
 case class ComparatorConfig(
   primaryKeys: Seq[String],
   ignoreColumns: Seq[String] = Seq.empty,
